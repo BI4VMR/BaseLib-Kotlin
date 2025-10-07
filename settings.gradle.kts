@@ -54,6 +54,3 @@ includeBuild("plugin")
 // ----- 工具库 -----
 // 公共组件
 include(":lib_common:base")
-
-// 依赖传递
-include(":lib_all")

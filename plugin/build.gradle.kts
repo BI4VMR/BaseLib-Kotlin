@@ -33,5 +33,11 @@ gradlePlugin {
             id = "net.bi4vmr.gradle.plugin.repo.private"
             implementationClass = "net.bi4vmr.gradle.plugin.PrivateRepoPlugin"
         }
+
+        /* 私有Maven Publish配置 */
+        create("PrivatePublish") {
+            id = "net.bi4vmr.gradle.plugin.maven.publish"
+            implementationClass = "net.bi4vmr.gradle.plugin.PrivatePublishPlugin"
+        }
     }
 }
