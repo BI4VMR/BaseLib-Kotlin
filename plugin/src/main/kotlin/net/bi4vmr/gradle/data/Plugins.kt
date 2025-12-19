@@ -20,6 +20,12 @@ object Plugins {
 
     const val MAVEN_PUBLISH: String = "maven-publish"
 
+    const val JACOCO: String = "jacoco"
+
+    const val ANDROID_LIBRARY = "com.android.library"
+
+    const val ANDROID_APPLICATION = "com.android.application"
+
     const val PUBLIC_REPO: String = PublicRepoPlugin.NAME
 
     const val PRIVATE_REPO: String = PrivateRepoPlugin.NAME

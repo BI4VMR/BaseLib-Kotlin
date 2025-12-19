@@ -52,6 +52,12 @@ object MavenRepos {
         description = "私有仓库（通过局域网连接）。"
     )
 
+    val PRIVATE_VPN = MavenRepo(
+        name = "Private-VPN",
+        url = "http://192.168.128.1:8081/repository/maven-union/",
+        description = "私有仓库（通过VPN连接）。"
+    )
+
     val PRIVATE_LOCAL = MavenRepo(
         name = "Private-LOCAL",
         url = "http://127.0.0.1:8081/repository/maven-union/",
