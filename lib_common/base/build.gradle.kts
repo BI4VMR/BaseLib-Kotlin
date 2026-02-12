@@ -6,6 +6,7 @@ val mvnVersion: String = requireNotNull(depInTOML.version)
 
 plugins {
     alias(libKotlin.plugins.core)
+    id(privateLibJava.plugins.java.version.get().pluginId)
     id(privateLibJava.plugins.publish.private.get().pluginId)
 }
 
@@ -21,6 +22,10 @@ dependencies {
     testImplementation(libJava.junit5.launcher)
     // Jupiter（JUnit5引擎的实现）
     testImplementation(libJava.junit5.jupiter)
+}
+
+javaVersionConfig {
+    jdkVersion = JavaVersion.VERSION_1_8
 }
 
 privatePublishConfig {

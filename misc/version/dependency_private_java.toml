@@ -17,6 +17,7 @@ security_digest = "1.0.0"
 
 
 # ----- 插件 -----
+java_version = "1.0.0"
 repo_public = "1.0.0"
 repo_private = "1.0.0"
 publish_private = "1.0.0"
@@ -43,6 +44,8 @@ security_digest = { group = "net.bi4vmr.tool.java", name = "security-digest", ve
 # Gradle插件
 [plugins]
 # ----- Java -----
+# Java版本配置
+java_version = { id = "net.bi4vmr.gradle.plugin.java.version", version.ref = "java_version" }
 # Maven公开仓库
 repo_public = { id = "net.bi4vmr.gradle.plugin.repo.public", version.ref = "repo_public" }
 # Maven私有仓库

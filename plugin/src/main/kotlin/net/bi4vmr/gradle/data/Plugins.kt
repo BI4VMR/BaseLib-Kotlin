@@ -1,5 +1,6 @@
 package net.bi4vmr.gradle.data
 
+import net.bi4vmr.gradle.plugin.JavaVersionPlugin
 import net.bi4vmr.gradle.plugin.PrivatePublishPlugin
 import net.bi4vmr.gradle.plugin.PrivateRepoPlugin
 import net.bi4vmr.gradle.plugin.PublicRepoPlugin
@@ -25,6 +26,10 @@ object Plugins {
     const val ANDROID_LIBRARY = "com.android.library"
 
     const val ANDROID_APPLICATION = "com.android.application"
+
+    const val ANDROID_KOTLIN = "org.jetbrains.kotlin.android"
+
+    const val JAVA_VERSION: String = JavaVersionPlugin.NAME
 
     const val PUBLIC_REPO: String = PublicRepoPlugin.NAME
 
