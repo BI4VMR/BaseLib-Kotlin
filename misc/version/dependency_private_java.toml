@@ -1,6 +1,7 @@
 # 版本号
 [versions]
 common_base = "1.0.0"
+common_reflect = "1.0.0"
 
 io_base = "1.0.0"
 
@@ -26,6 +27,7 @@ publish_private = "1.0.0"
 # 组件
 [libraries]
 common_base = { group = "net.bi4vmr.tool.java", name = "common-base", version.ref = "common_base" }
+common_reflect = { group = "net.bi4vmr.tool.java", name = "common-reflect", version.ref = "common_reflect" }
 
 io_base = { group = "net.bi4vmr.tool.java", name = "io-base", version.ref = "io_base" }
 
