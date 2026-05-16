@@ -55,3 +55,6 @@ includeBuild("plugin")
 // 公共组件
 include(":lib_common:base")
 include(":lib_common:reflect")
+
+// 金融工具
+include(":lib_finance:base")
