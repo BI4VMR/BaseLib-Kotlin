@@ -58,3 +58,7 @@ include(":lib_common:reflect")
 
 // 金融工具
 include(":lib_finance:base")
+
+// 外部工具
+include(":lib_external:adb_core")
+include(":lib_external:adb_ktx")

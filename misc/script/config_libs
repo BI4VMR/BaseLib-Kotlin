@@ -1,3 +1,5 @@
 # 在此处注册各Lib模块的名称，按照依赖顺序排列。
 :lib_common:base
 :lib_finance:base
+:lib_external:adb_core
+:lib_external:adb_ktx

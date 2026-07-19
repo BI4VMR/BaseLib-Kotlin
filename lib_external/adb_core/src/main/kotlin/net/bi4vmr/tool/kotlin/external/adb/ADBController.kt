@@ -1,0 +1,503 @@
+package net.bi4vmr.tool.kotlin.external.adb
+
+import com.android.ddmlib.AndroidDebugBridge
+import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener
+import com.android.ddmlib.IDevice
+import net.bi4vmr.tool.java.common.base.CLIUtil
+import net.bi4vmr.tool.java.common.base.system.SystemUtil
+import net.bi4vmr.tool.kotlin.external.adb.ADBController.findADBInPath
+import net.bi4vmr.tool.kotlin.external.adb.ADBController.init
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+/**
+ * ADB 控制器。
+ *
+ * @author bi4vmr@outlook.com
+ * @since 1.0.0
+ */
+object ADBController {
+
+    private val logger: Logger = LoggerFactory.getLogger(ADBController::class.java)
+
+    /**
+     * DDMLib 回调监听器实例。
+     *
+     * 仅本工具内部使用，将原始事件处理后转发到 [ADBEventListener] 以供调用者监听。
+     */
+    private val ddmLibListener: DDMLibListener = DDMLibListener()
+
+    /**
+     * ADB 设备列表。
+     */
+    private val deviceList: MutableList<ADBDevice> = mutableListOf()
+
+    /**
+     * ADB 服务监听器列表。
+     */
+    private val serviceListeners: MutableList<ADBServiceListener> = mutableListOf()
+
+    /**
+     * ADB 事件监听器列表。
+     */
+    private val eventListeners: MutableList<ADBEventListener> = mutableListOf()
+
+    /**
+     * 事件通知线程。
+     */
+    private var listenerNotifier: ExecutorService = initListenerNotifier()
+
+    /**
+     * 同步锁。
+     */
+    private val lock: Any = Any()
+
+    /**
+     * 服务初始化状态。
+     */
+    @Volatile
+    private var initialized: Boolean = false
+
+
+    /*
+     * ----- ADB 服务状态管理 -----
+     */
+
+    /**
+     * 初始化。
+     * <p>
+     * 调用其他方法之前，应当首先调用本方法。
+     *
+     * @param[adbPath] ADB可执行文件路径。建议优先使用用户配置的路径；不存在则调用 [findADBInPath] 方法在环境变量中寻找；未找到再从常见路径中
+     * 寻找。
+     * @return `true` 表示初始化成功， `false` 表示初始化失败。
+     */
+    @JvmStatic
+    fun init(adbPath: String): Boolean {
+        synchronized(lock) {
+            if (initialized) {
+                logger.warn("Do NOT call init method repeatedly!")
+                notifyServiceReady(false)
+                return false
+            }
+
+            val adbFile = File(adbPath)
+            if (!adbFile.canExecute()) {
+                logger.error("ADB file is not exist or executable! File:[{}]", adbFile)
+                notifyServiceReady(false)
+                return false
+            }
+
+            listenerNotifier = initListenerNotifier()
+
+            // 初始化DDM库，参数表示是否支持连接到应用的JVM进行Debug，目前不使用相关功能。
+            AndroidDebugBridge.init(false)
+            // 启动ADB的PC端进程
+            AndroidDebugBridge.createBridge(adbPath, false)
+
+            // 等待ADB进程启动完毕
+            var waitMillis = 10L
+            while (!isServiceReady()) {
+                try {
+                    Thread.sleep(waitMillis)
+                    waitMillis += 10L
+                } catch (_: InterruptedException) {
+                    // 中断处理：放弃本次初始化操作
+                    Thread.currentThread().interrupt()
+                    logger.warn("Init call has been interrupted!")
+                    AndroidDebugBridge.disconnectBridge()
+                    AndroidDebugBridge.terminate()
+                    notifyServiceReady(false)
+                    return false
+                }
+            }
+
+            AndroidDebugBridge.addDeviceChangeListener(ddmLibListener)
+            getDevicesInner()
+            notifyServiceReady(true)
+            notifyDeviceListChange(deviceList)
+
+            initialized = true
+        }
+
+        return true
+    }
+
+    // 初始化外部事件通知线程池
+    private fun initListenerNotifier(): ExecutorService {
+        return Executors.newSingleThreadExecutor { r -> Thread(r, "ADBEventNotify") }
+    }
+
+    /**
+     * 判断 DDMLib 是否已连接 ADB 服务进程。
+     *
+     * @return `true` 表示 ADB 服务已就绪， `false` 表示 ADB 服务未就绪。
+     */
+    private fun isServiceReady(): Boolean {
+        val bridge = AndroidDebugBridge.getBridge()
+        return bridge != null &&
+                bridge.isConnected &&
+                bridge.hasInitialDeviceList()
+    }
+
+    /**
+     * 获取设备列表。
+     *
+     * 获取设备列表，并刷新内存缓存。
+     */
+    private fun getDevicesInner() {
+        deviceList.clear()
+
+        val newList = AndroidDebugBridge.getBridge()
+            .devices
+            .map { ADBDevice(it.state, it) }
+
+        deviceList.addAll(newList)
+    }
+
+    /**
+     * ADB 服务是否就绪。
+     *
+     * @return `true` 表示初始化完成； `false` 表示尚未初始化完成。
+     */
+    fun isInitialized(): Boolean = initialized
+
+    /**
+     * 终止当前进程与 ADB 服务的连接。
+     *
+     * 该方法会导致已与 PC 连接的设备断开，若未调用则 DDMLib 内部事件监听线程会使进程无法终止。
+     */
+    @JvmStatic
+    fun terminate() {
+        synchronized(lock) {
+            if (!initialized) {
+                return
+            }
+
+            notifyServiceTerminate()
+
+            AndroidDebugBridge.removeDeviceChangeListener(ddmLibListener)
+
+            listenerNotifier.shutdownNow()
+            deviceList.clear()
+
+            AndroidDebugBridge.disconnectBridge()
+            AndroidDebugBridge.terminate()
+
+            initialized = false
+        }
+    }
+
+    /**
+     * 注册 ADB 服务监听器。
+     *
+     * @param[listener] 监听器实例。
+     */
+    fun addServiceListener(listener: ADBServiceListener) {
+        synchronized(lock) {
+            if (!serviceListeners.contains(listener)) {
+                serviceListeners.add(listener)
+            }
+        }
+    }
+
+    /**
+     * 注消 ADB 服务监听器。
+     *
+     * @param[listener] 监听器实例。
+     */
+    fun removeServiceListener(listener: ADBServiceListener) {
+        synchronized(lock) {
+            serviceListeners.remove(listener)
+        }
+    }
+
+    /**
+     * 通知 ADB 服务就绪。
+     */
+    private fun notifyServiceReady(state: Boolean) {
+        val listeners = synchronized(lock) {
+            serviceListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onInitDone(state)
+                }.onFailure {
+                    logger.warn("Notify service init done occurred error!", it)
+                }
+            }
+        }
+    }
+
+    /**
+     * 通知 ADB 服务断开。
+     */
+    private fun notifyServiceTerminate() {
+        val listeners = synchronized(lock) {
+            serviceListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onTerminate()
+                }.onFailure {
+                    logger.warn("Notify service terminate occurred error!", it)
+                }
+            }
+        }
+    }
+
+
+    /*
+     * ----- 设备管理 -----
+     */
+
+    /**
+     * 获取设备列表。
+     * <p>
+     * 返回本类缓存的设备列表。
+     *
+     * @return 设备列表。
+     */
+    fun getDevices(): List<ADBDevice> {
+        synchronized(lock) {
+            return deviceList.toList()
+        }
+    }
+
+    /**
+     * 连接远程设备。
+     *
+     * @param[ip] 设备 IP 地址。
+     * @return `true` 表示连接成功； `false` 表示连接失败。
+     */
+    fun connectRemoteDevice(ip: String): Boolean {
+        // DDM库只能发送ADB Shell命令，此处直接调用CLI连接设备，因此不需要判断DDM库的状态。
+        val cmd = String.format("adb connect %s:5555", ip)
+        val status = CLIUtil.runForStatus(cmd)
+        return CLIUtil.isSuccess(status)
+    }
+
+    /**
+     * 断开远程设备。
+     *
+     * @param[ip] 设备 IP 地址。
+     * @return `true` 表示断开成功； `false` 表示断开失败。
+     */
+    fun disconnectRemoteDevice(ip: String): Boolean {
+        val cmd = String.format("adb disconnect %s:5555", ip)
+        val status = CLIUtil.runForStatus(cmd)
+        return CLIUtil.isSuccess(status)
+    }
+
+    /**
+     * 注册 ADB 事件监听器。
+     * <p>
+     * 该监听器不依赖初始化状态，可以在调用 [init] 方法前进行注册，以便接收初始设备列表。
+     *
+     * @param[listener] 监听器实现。
+     */
+    fun addEventListener(listener: ADBEventListener) {
+        synchronized(lock) {
+            if (!eventListeners.contains(listener)) {
+                eventListeners.add(listener)
+            }
+        }
+    }
+
+    /**
+     * 注销 ADB 事件监听器。
+     *
+     * @param[listener] 监听器实现。
+     */
+    fun removeEventListener(listener: ADBEventListener) {
+        synchronized(lock) {
+            eventListeners.remove(listener)
+        }
+    }
+
+    /**
+     * 通知设备列表变更。
+     *
+     * @param[devices] 设备列表。
+     */
+    private fun notifyDeviceListChange(devices: List<ADBDevice>) {
+        val listeners = synchronized(lock) {
+            eventListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onDeviceListChange(devices)
+                }.onFailure {
+                    logger.warn("Notify device list change occurred error!", it)
+                }
+            }
+        }
+    }
+
+    /**
+     * 通知设备已连接。
+     *
+     * @param[device] 设备。
+     */
+    private fun notifyDeviceConnect(device: ADBDevice) {
+        val listeners = synchronized(lock) {
+            eventListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onDeviceConnect(device)
+                }.onFailure {
+                    logger.warn("Notify device connect occurred error!", it)
+                }
+            }
+        }
+    }
+
+    /**
+     * 通知设备已断开。
+     *
+     * @param[device] 设备。
+     */
+    private fun notifyDeviceDisconnect(device: ADBDevice) {
+        val listeners = synchronized(lock) {
+            eventListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onDeviceDisconnect(device)
+                }.onFailure {
+                    logger.warn("Notify device disconnect occurred error!", it)
+                }
+            }
+        }
+    }
+
+    /**
+     * 通知设备状态变更。
+     *
+     * @param[device] 设备。
+     */
+    private fun notifyDeviceStateChange(device: ADBDevice) {
+        val listeners = synchronized(lock) {
+            eventListeners
+        }
+
+        listenerNotifier.execute {
+            listeners.forEach { listener ->
+                runCatching {
+                    listener.onDeviceStateChange(device)
+                }.onFailure {
+                    logger.warn("Notify device state change occurred error!", it)
+                }
+            }
+        }
+    }
+
+
+    /*
+     * ----- 工具方法 -----
+     */
+
+    /**
+     * 获取当前平台的ADB可执行文件名称。
+     *
+     * @return 文件名称。
+     */
+    @JvmStatic
+    fun getADBExecName(): String {
+        return if (SystemUtil.isWindows()) "adb.exe" else "adb"
+    }
+
+    /**
+     * 在环境变量 `PATH` 中寻找ADB可执行文件。
+     *
+     * 该方法通常只在 Windows 环境有效， Linux 和 macOS 存在应用沙盒，可能不会对应用暴露所有环境变量。
+     *
+     * @return ADB可执行文件。如果未找到则返回空值。
+     */
+    @JvmStatic
+    fun findADBInPath(): File? {
+        val adbName = getADBExecName()
+        SystemUtil.getPathDirectories()
+            .forEach { dir ->
+                val test = File(dir, adbName)
+                if (test.exists()) {
+                    return test
+                }
+            }
+
+        return null
+    }
+
+
+    /**
+     * DDMLib 监听器实现。
+     *
+     * 监听 DDMLib 的设备连接、断开和状态变化事件，并通过 [ADBEventListener] 接口通知外部监听者。
+     */
+    private class DDMLibListener : IDeviceChangeListener {
+
+        override fun deviceConnected(device: IDevice) {
+            logger.debug("DDMLib notify device [{}] connected.", device)
+            val device = ADBDevice(device.state, device)
+            synchronized(lock) {
+                deviceList.add(device)
+            }
+            notifyDeviceConnect(device)
+        }
+
+        override fun deviceDisconnected(device: IDevice) {
+            logger.debug("DDMLib notify device [{}] disconnected.", device)
+            synchronized(lock) {
+                val current = deviceList.find { it.ddmDevice == device }
+                if (current != null) {
+                    deviceList.remove(current)
+                    notifyDeviceDisconnect(current)
+                } else {
+                    logger.warn("DDMLib notify device [{}] disconnected, but not found in cache!", device)
+                }
+            }
+        }
+
+        override fun deviceChanged(device: IDevice, changeMask: Int) {
+            // 设备属性接口兼容性不佳，部分设备无法通过 `getProperty()` 接口获取属性，因此只使用该接口通告设备状态，忽略其他Mask标志位。
+            if (changeMask != IDevice.CHANGE_STATE) {
+                return
+            }
+
+            // 有时设备状态会变为空值，此类事件没有任何含义，因此忽略这些事件。
+            if (device.state == null) {
+                return
+            }
+
+            logger.debug("DDMLib notify device [{}] state changed.", device)
+
+            synchronized(lock) {
+                // 寻找 IDevice 属性与当前值对应的 ADBDevice
+                val current = deviceList.find { it.ddmDevice == device }
+                if (current != null) {
+                    val index = deviceList.indexOf(current)
+                    if (index != -1) {
+                        deviceList[index] = current.copy(ddmState = device.state)
+                    }
+                    notifyDeviceStateChange(current.copy(ddmState = device.state))
+                } else {
+                    logger.warn("DDMLib notify device [{}] state changed, but not found in cache!", device)
+                }
+            }
+        }
+    }
+}
