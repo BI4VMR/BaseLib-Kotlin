@@ -4,9 +4,10 @@ import com.android.ddmlib.AndroidDebugBridge
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener
 import com.android.ddmlib.IDevice
 import net.bi4vmr.tool.java.common.base.CLIUtil
-import net.bi4vmr.tool.java.common.base.system.SystemUtil
-import net.bi4vmr.tool.kotlin.external.adb.ADBController.findADBInPath
 import net.bi4vmr.tool.kotlin.external.adb.ADBController.init
+import net.bi4vmr.tool.kotlin.external.adb.ADBController.terminate
+import net.bi4vmr.tool.kotlin.external.adb.model.ADBDevice
+import net.bi4vmr.tool.kotlin.external.adb.util.ADBExecutableUtil
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -22,6 +23,17 @@ import java.util.concurrent.Executors
 object ADBController {
 
     private val logger: Logger = LoggerFactory.getLogger(ADBController::class.java)
+
+    /**
+     * ADB 可执行文件。
+     */
+    @Volatile
+    private var executableFile: File? = null
+
+    /**
+     * 是否自动侦测 ADB 可执行文件位置。
+     */
+    private var detectExecutable: Boolean = true
 
     /**
      * DDMLib 回调监听器实例。
@@ -68,15 +80,15 @@ object ADBController {
 
     /**
      * 初始化。
-     * <p>
-     * 调用其他方法之前，应当首先调用本方法。
      *
-     * @param[adbPath] ADB可执行文件路径。建议优先使用用户配置的路径；不存在则调用 [findADBInPath] 方法在环境变量中寻找；未找到再从常见路径中
-     * 寻找。
+     * 进行其他操作之前，应当首先调用本方法。
+     *
+     * 连接外部 ADB 进程可能耗时较长，建议先注册 [ADBServiceListener] 监听初始化状态，然后在独立线程中调用本方法。
+     *
      * @return `true` 表示初始化成功， `false` 表示初始化失败。
      */
     @JvmStatic
-    fun init(adbPath: String): Boolean {
+    fun init(): Boolean {
         synchronized(lock) {
             if (initialized) {
                 logger.warn("Do NOT call init method repeatedly!")
@@ -84,9 +96,13 @@ object ADBController {
                 return false
             }
 
-            val adbFile = File(adbPath)
-            if (!adbFile.canExecute()) {
-                logger.error("ADB file is not exist or executable! File:[{}]", adbFile)
+            if (executableFile == null) {
+                executableFile = ADBExecutableUtil.detectExecutable()
+            }
+
+            val adbFile = executableFile
+            if (adbFile == null || adbFile.isDirectory || !adbFile.canExecute()) {
+                logger.error("ADB file is not exist or executable! Path:[{}]", adbFile)
                 notifyServiceReady(false)
                 return false
             }
@@ -96,7 +112,7 @@ object ADBController {
             // 初始化DDM库，参数表示是否支持连接到应用的JVM进行Debug，目前不使用相关功能。
             AndroidDebugBridge.init(false)
             // 启动ADB的PC端进程
-            AndroidDebugBridge.createBridge(adbPath, false)
+            AndroidDebugBridge.createBridge(adbFile.absolutePath, false)
 
             // 等待ADB进程启动完毕
             var waitMillis = 10L
@@ -128,7 +144,7 @@ object ADBController {
 
     // 初始化外部事件通知线程池
     private fun initListenerNotifier(): ExecutorService {
-        return Executors.newSingleThreadExecutor { r -> Thread(r, "ADBEventNotify") }
+        return Executors.newSingleThreadExecutor { r -> Thread(r, "ADBEventNotifier") }
     }
 
     /**
@@ -260,7 +276,7 @@ object ADBController {
 
     /**
      * 获取设备列表。
-     * <p>
+     *
      * 返回本类缓存的设备列表。
      *
      * @return 设备列表。
@@ -298,7 +314,7 @@ object ADBController {
 
     /**
      * 注册 ADB 事件监听器。
-     * <p>
+     *
      * 该监听器不依赖初始化状态，可以在调用 [init] 方法前进行注册，以便接收初始设备列表。
      *
      * @param[listener] 监听器实现。
@@ -408,38 +424,41 @@ object ADBController {
 
 
     /*
-     * ----- 工具方法 -----
+     * ----- 可执行文件管理 -----
      */
 
     /**
-     * 获取当前平台的ADB可执行文件名称。
+     * 是否自动侦测 ADB 可执行文件位置。
      *
-     * @return 文件名称。
+     * @return `true` 表示自动侦测； `false` 表示使用用户指定的路径。
      */
     @JvmStatic
-    fun getADBExecName(): String {
-        return if (SystemUtil.isWindows()) "adb.exe" else "adb"
-    }
+    fun isAutoDetectExecutable(): Boolean = detectExecutable
 
     /**
-     * 在环境变量 `PATH` 中寻找ADB可执行文件。
+     * 获取当前 ADB 可执行文件。
      *
-     * 该方法通常只在 Windows 环境有效， Linux 和 macOS 存在应用沙盒，可能不会对应用暴露所有环境变量。
-     *
-     * @return ADB可执行文件。如果未找到则返回空值。
+     * @return 可执行文件。如果当前采用自动侦测但没有找到可执行文件，则返回空值。
      */
     @JvmStatic
-    fun findADBInPath(): File? {
-        val adbName = getADBExecName()
-        SystemUtil.getPathDirectories()
-            .forEach { dir ->
-                val test = File(dir, adbName)
-                if (test.exists()) {
-                    return test
-                }
-            }
+    fun getExecutableFile(): File? = executableFile
 
-        return null
+    /**
+     * 设置 ADB 可执行文件路径。
+     *
+     * 该方法不会对已经开启的 ADB 进程生效，若要更新这些进程，应当先通过 [terminate] 方法断开连接，然后重新调用 [init] 方法。
+     *
+     * @param[path] 可执行文件路径。若为空值则启用自动侦测。
+     */
+    @JvmStatic
+    fun setExecutableFile(path: String? = null) {
+        if (path == null) {
+            executableFile = ADBExecutableUtil.detectExecutable()
+            detectExecutable = true
+        } else {
+            executableFile = File(path)
+            detectExecutable = false
+        }
     }
 
 

@@ -1,4 +1,6 @@
-package net.bi4vmr.tool.kotlin.external.adb
+package net.bi4vmr.tool.kotlin.external.adb.model
+
+import net.bi4vmr.tool.kotlin.external.adb.util.ADBOutputParser
 
 /**
  * 设备屏幕信息。

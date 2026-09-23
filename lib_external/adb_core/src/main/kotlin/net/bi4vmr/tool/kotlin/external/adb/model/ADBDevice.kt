@@ -1,6 +1,8 @@
-package net.bi4vmr.tool.kotlin.external.adb
+package net.bi4vmr.tool.kotlin.external.adb.model
 
 import com.android.ddmlib.IDevice
+import net.bi4vmr.tool.kotlin.external.adb.constant.DeviceState
+import net.bi4vmr.tool.kotlin.external.adb.util.ADBUtil
 import java.io.File
 
 /**

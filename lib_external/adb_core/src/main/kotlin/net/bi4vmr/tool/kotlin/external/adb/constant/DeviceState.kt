@@ -1,4 +1,4 @@
-package net.bi4vmr.tool.kotlin.external.adb
+package net.bi4vmr.tool.kotlin.external.adb.constant
 
 /**
  * ADB 设备状态。

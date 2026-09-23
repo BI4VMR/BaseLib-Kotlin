@@ -3,10 +3,10 @@ package net.bi4vmr.tool.kotlin.external.adb.ktx
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import net.bi4vmr.tool.kotlin.external.adb.ADBController
-import net.bi4vmr.tool.kotlin.external.adb.ADBDevice
 import net.bi4vmr.tool.kotlin.external.adb.ADBEventListener
 import net.bi4vmr.tool.kotlin.external.adb.ADBServiceListener
 import net.bi4vmr.tool.kotlin.external.adb.ktx.ADBObserver.init
+import net.bi4vmr.tool.kotlin.external.adb.model.ADBDevice
 
 /**
  * ADB 设备状态的 Flow 封装。

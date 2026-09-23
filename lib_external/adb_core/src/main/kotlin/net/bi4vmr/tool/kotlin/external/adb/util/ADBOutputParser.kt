@@ -1,4 +1,6 @@
-package net.bi4vmr.tool.kotlin.external.adb
+package net.bi4vmr.tool.kotlin.external.adb.util
+
+import net.bi4vmr.tool.kotlin.external.adb.model.DisplayInfo
 
 /**
  * ADB 输出解析器。

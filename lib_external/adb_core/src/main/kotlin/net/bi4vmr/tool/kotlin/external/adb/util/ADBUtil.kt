@@ -1,9 +1,10 @@
-package net.bi4vmr.tool.kotlin.external.adb
+package net.bi4vmr.tool.kotlin.external.adb.util
 
 import net.bi4vmr.tool.java.common.base.CLIUtil
 import net.bi4vmr.tool.java.common.base.io.BaseIOUtil
 import net.bi4vmr.tool.java.common.base.io.FileIOUtil
 import net.bi4vmr.tool.java.common.base.io.IOUtil
+import net.bi4vmr.tool.kotlin.external.adb.model.DisplayInfo
 import java.io.File
 
 /**

@@ -1,5 +1,7 @@
 package net.bi4vmr.tool.kotlin.external.adb
 
+import net.bi4vmr.tool.kotlin.external.adb.model.ADBDevice
+
 /**
  * ADB 事件监听器。
  *
