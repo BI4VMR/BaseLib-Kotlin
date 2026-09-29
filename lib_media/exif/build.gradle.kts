@@ -16,7 +16,7 @@ tasks.withType<Test> {
 }
 
 dependencies {
-    api(privateLibJava.finance.base)
+    api(privateLibJava.common.base)
 
     // JUnit5 BOM版本配置文件
     testImplementation(platform(libJava.junit5.bom))
