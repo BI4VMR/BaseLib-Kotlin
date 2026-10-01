@@ -1,7 +1,7 @@
 package net.bi4vmr.gradle.plugin
 
 /**
- * 私有Maven发布插件配置项。
+ * 私有 Maven 仓库发布插件配置项。
  *
  * @author bi4vmr@outlook.com
  * @since 1.0.0

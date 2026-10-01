@@ -6,8 +6,8 @@ val mvnVersion: String = requireNotNull(depInTOML.version)
 
 plugins {
     alias(libKotlin.plugins.core)
-    id(privateLibJava.plugins.java.version.get().pluginId)
-    id(privateLibJava.plugins.publish.private.get().pluginId)
+    alias(privateLibJava.plugins.java.version)
+    alias(privateLibJava.plugins.publish.private)
 }
 
 tasks.withType<Test> {

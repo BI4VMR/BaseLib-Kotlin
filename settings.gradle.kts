@@ -2,20 +2,33 @@
 
 // 构建工具的依赖配置
 pluginManagement {
-    // 声明Gradle插件仓库
+    // 声明 Gradle 插件仓库
     repositories {
-        // 腾讯云仓库镜像：Maven中心仓库+Spring+Google+JCenter
-        maven { setUrl("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/") }
-        // 阿里云仓库镜像：Gradle社区插件
+        // 阿里云仓库镜像： Gradle 社区插件
         maven { setUrl("https://maven.aliyun.com/repository/gradle-plugin/") }
-        // 阿里云仓库镜像：Maven中心仓库+JCenter
+        // 阿里云仓库镜像： Maven 中心仓库 + JCenter
         maven { setUrl("https://maven.aliyun.com/repository/public/") }
-        // 阿里云仓库镜像：Google仓库
-        maven { setUrl("https://maven.aliyun.com/repository/google/") }
+        // 阿里云仓库镜像： Google 仓库
+        maven {
+            setUrl("https://maven.aliyun.com/reposiory/google/")
+            mavenContent {
+                includeGroupAndSubgroups("androidx")
+                includeGroupAndSubgroups("com.android")
+                includeGroupAndSubgroups("com.google")
+            }
+        }
+        // 腾讯云仓库镜像： Maven 中心仓库 + Google + JCenter
+        maven { setUrl("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/") }
 
         gradlePluginPortal()
         mavenCentral()
-        google()
+        google {
+            mavenContent {
+                includeGroupAndSubgroups("androidx")
+                includeGroupAndSubgroups("com.android")
+                includeGroupAndSubgroups("com.google")
+            }
+        }
     }
 }
 
@@ -23,27 +36,33 @@ pluginManagement {
 dependencyResolutionManagement {
     // 版本管理配置
     versionCatalogs {
-        // 公共组件(Java)
+        // 公共组件 (Java)
         create("libJava") {
             from(files("misc/version/dependency_public_java.toml"))
         }
 
-        // 公共组件(Kotlin)
+        // 公共组件 (Kotlin)
         create("libKotlin") {
             from(files("misc/version/dependency_public_kotlin.toml"))
         }
 
-        // 私有组件(Java)
+        // 私有组件 (Java)
         create("privateLibJava") {
             from(files("misc/version/dependency_private_java.toml"))
         }
 
-        // 私有组件(Kotlin)
+        // 私有组件 (Kotlin)
         create("privateLibKotlin") {
             from(files("misc/version/dependency_private_kotlin.toml"))
         }
+
+        // Android 版本配置
+        create("agp") {
+            from(files("misc/version/agp.toml"))
+        }
     }
 }
+
 
 /* ----- 工程结构声明 ----- */
 // 主工程名称

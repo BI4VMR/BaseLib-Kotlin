@@ -1,4 +1,4 @@
-package net.bi4vmr.tool.kotlin.image.exif.util
+package net.bi4vmr.tool.kotlin.media.exif.util
 
 import net.bi4vmr.tool.java.common.base.system.OSType
 import net.bi4vmr.tool.java.common.base.system.SystemUtil
@@ -12,7 +12,7 @@ import java.io.File
  * @author bi4vmr@outlook.com
  * @since 1.0.0
  */
-object ExifToolExecutableUtil {
+actual object ExifToolExecutableUtil {
 
     /**
      * 获取当前平台可执行文件名称。
@@ -20,7 +20,7 @@ object ExifToolExecutableUtil {
      * @return 文件名称。
      */
     @JvmStatic
-    fun getExecutableName(): String {
+    actual fun getExecutableName(): String {
         return if (SystemUtil.isWindows()) "exiftool.exe" else "exiftool"
     }
 
@@ -38,7 +38,7 @@ object ExifToolExecutableUtil {
      * @return 可执行文件。未找到时将返回空值。
      */
     @JvmStatic
-    fun detectExecutable(): File? {
+    actual fun detectExecutable(): File? {
         return findInPath() ?: findInFileSystem()
     }
 
@@ -79,6 +79,7 @@ object ExifToolExecutableUtil {
                     "C:/Tool/ExifTool/exiftool.exe"
                 )
             }
+
             OSType.MACOS -> {
                 listOf(
                     "$homePath/Library/exiftool/exiftool",

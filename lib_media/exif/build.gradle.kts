@@ -5,28 +5,61 @@ val mvnVersion: String = requireNotNull(depInTOML.version)
 
 
 plugins {
-    alias(libKotlin.plugins.core)
-    id(privateLibJava.plugins.java.version.get().pluginId)
-    id(privateLibJava.plugins.publish.private.get().pluginId)
+    alias(libKotlin.plugins.kotlin.multiplatform)
+    // alias(libKotlin.plugins.kotlin.multiplatform.android)
+    alias(libKotlin.plugins.dokka)
+
+    alias(privateLibJava.plugins.java.version)
+    alias(privateLibJava.plugins.publish.private.kmp)
 }
 
-tasks.withType<Test> {
-    // 连接Gradle测试任务与JUnit工具
-    useJUnitPlatform()
-}
 
-dependencies {
-    api(libJava.slf4j.api)
+kotlin {
+    /* 桌面平台配置 */
+    jvm()
 
-    api(privateLibJava.common.base)
+    /* Android 平台配置 */
+    // android {
+    //     namespace = "net.bi4vmr.tool.kotlin.media.exif"
+    //     compileSdk = 36
+    //     minSdk = 26
+    //
+    //     compilerOptions {
+    //         jvmTarget = JvmTarget.JVM_1_8
+    //     }
+    //
+    //     androidResources {
+    //         enable = true
+    //     }
+    //
+    //     withHostTest {
+    //         isIncludeAndroidResources = true
+    //     }
+    // }
 
+    /* 各平台依赖配置 */
+    sourceSets {
+        commonMain.dependencies {
+            api(libKotlin.standardlib)
+            api(libKotlin.ktx.io.core)
+        }
+        jvmMain.dependencies {
+            api(libJava.slf4j.api)
 
-    // JUnit5 BOM版本配置文件
-    testImplementation(platform(libJava.junit5.bom))
-    // JUnit5 平台启动器
-    testImplementation(libJava.junit5.launcher)
-    // Jupiter（JUnit5引擎的实现）
-    testImplementation(libJava.junit5.jupiter)
+            api(privateLibJava.common.base)
+        }
+        // androidMain.dependencies {
+        // }
+
+        jvmTest.dependencies {
+            // JUnit5 BOM 版本配置文件
+            implementation(dependencies.platform(libJava.junit5.bom))
+            // JUnit5 平台启动器
+            implementation(libJava.junit5.launcher)
+            // Jupiter（JUnit5 引擎的实现）
+            implementation(libJava.junit5.jupiter)
+        }
+    }
 }
 
 javaVersionConfig {
