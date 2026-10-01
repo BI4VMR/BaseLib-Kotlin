@@ -1,10 +1,14 @@
+@file:Suppress("UnstableApiUsage")
+
 package net.bi4vmr.gradle.plugin
 
+import com.android.build.api.variant.LibraryAndroidComponentsExtension
 import net.bi4vmr.gradle.data.MavenRepos
 import net.bi4vmr.gradle.data.Plugins
 import net.bi4vmr.gradle.entity.MavenRepo
 import net.bi4vmr.gradle.util.LogUtil
 import net.bi4vmr.gradle.util.NetUtil
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPluginExtension
@@ -57,6 +61,37 @@ class PrivatePublishPlugin : Plugin<Project> {
         // 注册扩展
         target.extensions.create(PrivatePublishConfig.NAME, PrivatePublishConfig::class.java)
 
+        // AGP 8 以上版本不会自动生成发布配置，需要在 `android {}` 块中通过 `publishing {}` 显式声明。
+        target.pluginManager.withPlugin(Plugins.ANDROID_LIBRARY) {
+            target.extensions.findByType(LibraryAndroidComponentsExtension::class.java)
+                ?.finalizeDsl { android ->
+                    val ext = target.extensions.findByType(PrivatePublishConfig::class.java) ?: return@finalizeDsl
+
+                    android.publishing {
+                        if (ext.includeAllVariants) {
+                            multipleVariants {
+                                allVariants()
+                                if (ext.uploadSources) {
+                                    withSourcesJar()
+                                }
+                                if (ext.uploadJavadoc) {
+                                    withJavadocJar()
+                                }
+                            }
+                        } else {
+                            singleVariant("release") {
+                                if (ext.uploadSources) {
+                                    withSourcesJar()
+                                }
+                                if (ext.uploadJavadoc) {
+                                    withJavadocJar()
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+
         target.plugins.withId(Plugins.MAVEN_PUBLISH) {
             target.afterEvaluate {
                 val ext = target.extensions.findByType(PrivatePublishConfig::class.java)
@@ -94,11 +129,13 @@ class PrivatePublishPlugin : Plugin<Project> {
                             version = ext.version
 
                             // 发布程序包
-                            if (target.isAndroidLib()) {
-                                from(components.getByName("release"))
+                            val component = if (target.isAndroidLib()) {
+                                val cmpName: String = if (ext.includeAllVariants) "default" else "release"
+                                target.components.findByName(cmpName)
                             } else {
-                                from(components.getByName("java"))
-                            }
+                                target.components.findByName("java")
+                            } ?: throw GradleException("Can not find component to publish. Please check config.")
+                            from(component)
 
                             val projectName: String = target.rootProject.name
 
@@ -119,16 +156,7 @@ class PrivatePublishPlugin : Plugin<Project> {
                     }
                 }
 
-                // 根据模块类型配置是否上传源码包和文档包
-                if (target.isAndroidLib()) {
-                    /*
-                     * 自从 Gradle 7.0 开始， Android Library 默认会发布源码，且无法在 `afterEvaluate {}` 阶段修改配置，因此无法
-                     * 通过插件的 Extensions 修改此行为，目前需要用户在 `android {}` 块中手动进行配置。
-                     */
-                    if (!ext.uploadSources || !ext.uploadJavadoc) {
-                        throw IllegalArgumentException("This version of Gradle will upload sources automatically, plugin can not interrupt this behavior, please use `publishing {}` in `android {}` to config manually!")
-                    }
-                } else {
+                if (!target.isAndroidLib()) {
                     target.extensions.configure<JavaPluginExtension> {
                         if (ext.uploadSources) {
                             withSourcesJar()
