@@ -4,6 +4,7 @@ import net.bi4vmr.tool.java.common.base.CLIUtil
 import net.bi4vmr.tool.java.common.base.io.BaseIOUtil
 import net.bi4vmr.tool.java.common.base.io.FileIOUtil
 import net.bi4vmr.tool.java.common.base.io.IOUtil
+import net.bi4vmr.tool.kotlin.external.adb.ADBController
 import net.bi4vmr.tool.kotlin.external.adb.model.DisplayInfo
 import java.io.File
 
@@ -139,7 +140,7 @@ object ADBUtil {
     @JvmStatic
     fun getDisplays(sn: String): List<DisplayInfo> {
         // 部分 Android 11 设备也不支持新版命令，因此直接尝试调用新版命令，若未获取内容则回退到旧版命令。
-        var lines: List<String> = runForLines(sn, "cmd display get-displays | grep 'aaa'") ?: emptyList()
+        var lines: List<String> = runForLines(sn, "cmd display get-displays") ?: emptyList()
         var displays: List<DisplayInfo> = ADBOutputParser.parseDisplayInfoV11U(lines)
         if (displays.isEmpty()) {
             lines = runForLines(sn, "dumpsys display | grep 'mBaseDisplayInfo=DisplayInfo'") ?: emptyList()
@@ -183,10 +184,10 @@ object ADBUtil {
     fun screenshotAsPNG(sn: String, displayID: String? = null): ByteArray? {
         try {
             val cmd = if (displayID == null) {
-                String.format("adb -s %s exec-out screencap -p", sn)
+                String.format("${getExecutableName()} -s %s exec-out screencap -p", sn)
             } else {
                 val physicalID = getDisplayUniqueIndex(sn, displayID)
-                String.format("adb -s %s exec-out screencap -d %s -p", sn, physicalID)
+                String.format("${getExecutableName()} -s %s exec-out screencap -d %s -p", sn, physicalID)
             }
 
             val process = CLIUtil.run(cmd, false)
@@ -200,7 +201,7 @@ object ADBUtil {
                 Int.MAX_VALUE,
                 IOUtil.BUFFER_SIZE_8MB
             )
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return null
         }
     }
@@ -219,10 +220,10 @@ object ADBUtil {
     fun screenshotAsPNG(sn: String, file: File, displayID: String? = null): Boolean {
         try {
             val cmd = if (displayID == null) {
-                String.format("adb -s %s exec-out screencap -p", sn)
+                String.format("${getExecutableName()} -s %s exec-out screencap -p", sn)
             } else {
                 val physicalID = getDisplayUniqueIndex(sn, displayID)
-                String.format("adb -s %s exec-out screencap -d %s -p", sn, physicalID)
+                String.format("${getExecutableName()} -s %s exec-out screencap -d %s -p", sn, physicalID)
             }
 
             val process = CLIUtil.run(cmd, false)
@@ -231,7 +232,7 @@ object ADBUtil {
             // 丢弃错误输出，防止阻塞其他线程。
             BaseIOUtil.readAndDrop(process.errorStream)
             return FileIOUtil.saveToFile(process.inputStream, file, IOUtil.BUFFER_SIZE_8MB)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return false
         }
     }
@@ -359,7 +360,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun pushFile(sn: String, src: File, remote: String): Boolean {
-        val cmd = String.format("adb -s %s push \"%s\" \"%s\"", sn, src.absolutePath, remote)
+        val cmd = String.format("${getExecutableName()} -s %s push \"%s\" \"%s\"", sn, src.absolutePath, remote)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -401,7 +402,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun startRemoteControl(sn: String): Boolean {
-        val cmd = String.format("adb -s %s tcpip 5555", sn)
+        val cmd = String.format("${getExecutableName()} -s %s tcpip 5555", sn)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -414,7 +415,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun stopRemoteControl(sn: String): Boolean {
-        val cmd = String.format("adb -s %s usb", sn)
+        val cmd = String.format("${getExecutableName()} -s %s usb", sn)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -429,7 +430,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun startForward(sn: String, pcPort: Int, devicePort: Int): Boolean {
-        val cmd = String.format("adb -s %s forward tcp:%d tcp:%d", sn, pcPort, devicePort)
+        val cmd = String.format("${getExecutableName()} -s %s forward tcp:%d tcp:%d", sn, pcPort, devicePort)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -443,7 +444,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun stopForward(sn: String, pcPort: Int): Boolean {
-        val cmd = String.format("adb -s %s forward --remove tcp:%d", sn, pcPort)
+        val cmd = String.format("${getExecutableName()} -s %s forward --remove tcp:%d", sn, pcPort)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -458,7 +459,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun startForward(sn: String, pcEndPoint: String, deviceEndPoint: String): Boolean {
-        val cmd = String.format("adb -s %s forward %s %s", sn, pcEndPoint, deviceEndPoint)
+        val cmd = String.format("${getExecutableName()} -s %s forward %s %s", sn, pcEndPoint, deviceEndPoint)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -472,7 +473,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun stopForward(sn: String, pcEndPoint: String): Boolean {
-        val cmd = String.format("adb -s %s forward --remove %s", sn, pcEndPoint)
+        val cmd = String.format("${getExecutableName()} -s %s forward --remove %s", sn, pcEndPoint)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -485,7 +486,7 @@ object ADBUtil {
      */
     @JvmStatic
     fun cleanForward(sn: String): Boolean {
-        val cmd = String.format("adb -s %s forward --remove-all", sn)
+        val cmd = String.format("${getExecutableName()} -s %s forward --remove-all", sn)
         val status = CLIUtil.runForStatus(cmd)
         return CLIUtil.isSuccess(status)
     }
@@ -535,9 +536,9 @@ object ADBUtil {
 
         // 添加当前序列号并返回原命令内容
         return if (execOut) {
-            String.format("adb -s %s exec-out %s", sn, trimmed)
+            String.format("${getExecutableName()} -s %s exec-out %s", sn, trimmed)
         } else {
-            String.format("adb -s %s shell %s", sn, trimmed)
+            String.format("${getExecutableName()} -s %s shell %s", sn, trimmed)
         }
     }
 
@@ -551,4 +552,16 @@ object ADBUtil {
     fun isADBCommand(command: String): Boolean {
         return command.startsWith("adb ")
     }
+
+
+    /*
+     * ----- 内部方法 -----
+     */
+
+    /**
+     * 获取 ADB 可执行文件名称。
+     *
+     * 使用 [ADBController] 中自动侦测或用户指定的可执行文件路径；若文件未指定则使用默认名称。
+     */
+    private fun getExecutableName(): String = ADBController.getExecutableFile()?.absolutePath ?: "adb"
 }
