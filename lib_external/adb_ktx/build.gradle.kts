@@ -11,21 +11,29 @@ plugins {
 }
 
 tasks.withType<Test> {
-    // 连接Gradle测试任务与JUnit工具
+    // 连接 Gradle 测试任务与 JUnit 工具
     useJUnitPlatform()
 }
 
 dependencies {
+    /* 工程组件 */
+    // 本地调试
+    // api(project(":lib_external:adb_core"))
+
+    // 依赖传递
     api(privateLibKotlin.external.adb.core)
 
+
+    /* 外部组件 */
     api(libKotlin.ktx.coroutines.core)
 
 
-    // JUnit5 BOM版本配置文件
+    /* 测试组件 */
+    // JUnit5 BOM 版本配置文件
     testImplementation(platform(libJava.junit5.bom))
     // JUnit5 平台启动器
     testImplementation(libJava.junit5.launcher)
-    // Jupiter（JUnit5引擎的实现）
+    // Jupiter（JUnit5 引擎的实现）
     testImplementation(libJava.junit5.jupiter)
 }
 

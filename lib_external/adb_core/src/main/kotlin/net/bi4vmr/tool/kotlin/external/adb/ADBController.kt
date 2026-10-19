@@ -236,7 +236,7 @@ object ADBController {
      */
     private fun notifyServiceReady(state: Boolean) {
         val listeners = synchronized(lock) {
-            serviceListeners
+            serviceListeners.toList()
         }
 
         listenerNotifier.execute {
@@ -255,7 +255,7 @@ object ADBController {
      */
     private fun notifyServiceTerminate() {
         val listeners = synchronized(lock) {
-            serviceListeners
+            serviceListeners.toList()
         }
 
         listenerNotifier.execute {
@@ -344,14 +344,17 @@ object ADBController {
      * @param[devices] 设备列表。
      */
     private fun notifyDeviceListChange(devices: List<ADBDevice>) {
-        val listeners = synchronized(lock) {
-            eventListeners
+        var currentDevices: List<ADBDevice> = emptyList()
+        var listeners: List<ADBEventListener> = emptyList()
+        synchronized(lock) {
+            currentDevices = devices.toList()
+            listeners = eventListeners.toList()
         }
 
         listenerNotifier.execute {
             listeners.forEach { listener ->
                 runCatching {
-                    listener.onDeviceListChange(devices)
+                    listener.onDeviceListChange(currentDevices)
                 }.onFailure {
                     logger.warn("Notify device list change occurred error!", it)
                 }
@@ -366,7 +369,7 @@ object ADBController {
      */
     private fun notifyDeviceConnect(device: ADBDevice) {
         val listeners = synchronized(lock) {
-            eventListeners
+            eventListeners.toList()
         }
 
         listenerNotifier.execute {
@@ -387,7 +390,7 @@ object ADBController {
      */
     private fun notifyDeviceDisconnect(device: ADBDevice) {
         val listeners = synchronized(lock) {
-            eventListeners
+            eventListeners.toList()
         }
 
         listenerNotifier.execute {
@@ -408,7 +411,7 @@ object ADBController {
      */
     private fun notifyDeviceStateChange(device: ADBDevice) {
         val listeners = synchronized(lock) {
-            eventListeners
+            eventListeners.toList()
         }
 
         listenerNotifier.execute {
@@ -474,6 +477,7 @@ object ADBController {
             val device = ADBDevice(device.state, device)
             synchronized(lock) {
                 deviceList.add(device)
+                notifyDeviceListChange(deviceList)
             }
             notifyDeviceConnect(device)
         }
@@ -484,6 +488,7 @@ object ADBController {
                 val current = deviceList.find { it.ddmDevice == device }
                 if (current != null) {
                     deviceList.remove(current)
+                    notifyDeviceListChange(deviceList)
                     notifyDeviceDisconnect(current)
                 } else {
                     logger.warn("DDMLib notify device [{}] disconnected, but not found in cache!", device)
@@ -512,6 +517,7 @@ object ADBController {
                     if (index != -1) {
                         deviceList[index] = current.copy(ddmState = device.state)
                     }
+                    notifyDeviceListChange(deviceList)
                     notifyDeviceStateChange(current.copy(ddmState = device.state))
                 } else {
                     logger.warn("DDMLib notify device [{}] state changed, but not found in cache!", device)
